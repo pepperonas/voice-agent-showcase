@@ -33,6 +33,12 @@ CREATE TABLE IF NOT EXISTS callbacks (
     tool_call_id TEXT UNIQUE,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+CREATE TABLE IF NOT EXISTS cancel_failures (
+    id INTEGER PRIMARY KEY,
+    phone TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS ix_cancel_failures_phone ON cancel_failures(phone, created_at);
 CREATE TABLE IF NOT EXISTS call_reports (
     call_id TEXT PRIMARY KEY,
     ended_reason TEXT, duration_seconds REAL, cost_usd REAL,

@@ -15,11 +15,15 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Any, Callable
 
-from app.domain import SERVICES, Booking, find_slots, is_slot_free, spread
+from app.domain import (LEAD_TIME, MAX_DAYS_AHEAD, SERVICES, SLOT_STEP, Booking, find_slots,
+                        is_slot_free, spread)
 
 WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 FUELS = {"benzin", "diesel", "elektro", "hybrid"}
 BODIES = {"kleinwagen", "kompakt", "kombi", "limousine", "suv"}
+MAX_ACTIVE_BOOKINGS_PER_PHONE = 3
+CANCEL_MAX_FAILURES = 5          # Fehlversuche je Telefonnummer ...
+CANCEL_FAILURE_WINDOW_H = 24     # ... innerhalb dieses Zeitfensters
 
 
 class ToolError(Exception):
@@ -220,11 +224,24 @@ def book_appointment(conn: sqlite3.Connection, args: dict, ctx: Ctx) -> dict:
     except ValueError:
         raise ToolError("'start' bitte im Format JJJJ-MM-TTTHH:MM, wie von check_availability geliefert.") from None
     start = start.replace(tzinfo=None, second=0, microsecond=0)
+    # Dieselben Grenzen wie check_availability, sonst ließen sie sich mit einem
+    # direkt gebauten Tool-Aufruf umgehen.
     if start < ctx.now:
         raise ToolError("Dieser Zeitpunkt liegt in der Vergangenheit.")
+    if start < ctx.now + LEAD_TIME:
+        raise ToolError("Termine sind frühestens eine Stunde im Voraus möglich.")
+    if start.date() > ctx.now.date() + timedelta(days=MAX_DAYS_AHEAD):
+        raise ToolError("Termine sind höchstens zwei Wochen im Voraus buchbar. Rückruf anbieten.")
+    if (start.hour * 60 + start.minute) % int(SLOT_STEP.total_seconds() // 60):
+        raise ToolError("Bitte eine der von check_availability genannten Uhrzeiten verwenden.")
     end = start + timedelta(minutes=service.minutes)
     conn.execute("BEGIN IMMEDIATE")
     try:
+        active = conn.execute(
+            "SELECT COUNT(*) FROM appointments WHERE phone = ? AND status = 'booked' AND start >= ?",
+            (phone, ctx.now.isoformat(timespec="minutes"))).fetchone()[0]
+        if active >= MAX_ACTIVE_BOOKINGS_PER_PHONE:
+            raise ToolError("Für diese Nummer sind bereits mehrere Termine offen. Bitte an einen Mitarbeiter übergeben.")
         if not is_slot_free(service, start, _bookings(conn, start.date(), start.date()), vid):
             raise ToolError("Dieser Termin ist leider nicht mehr frei. Bitte erneut nach freien Zeiten suchen.")
         code = _new_code(conn)
@@ -245,8 +262,16 @@ def book_appointment(conn: sqlite3.Connection, args: dict, ctx: Ctx) -> dict:
 def cancel_appointment(conn: sqlite3.Connection, args: dict, ctx: Ctx) -> dict:
     code = re.sub(r"\D", "", _text(args, "code", max_len=20))
     phone = normalize_phone(_text(args, "phone", max_len=40))
+    # Gegen Durchprobieren: Fehlversuche je Telefonnummer zählen und sperren.
+    window = f"-{CANCEL_FAILURE_WINDOW_H} hours"
+    failures = conn.execute(
+        "SELECT COUNT(*) FROM cancel_failures WHERE phone = ? AND created_at >= datetime('now', ?)",
+        (phone, window)).fetchone()[0]
+    if failures >= CANCEL_MAX_FAILURES:
+        raise ToolError("Zu viele Fehlversuche. Bitte an einen Mitarbeiter übergeben.")
     row = conn.execute("SELECT * FROM appointments WHERE code = ? AND phone = ?", (code, phone)).fetchone()
     if row is None:
+        conn.execute("INSERT INTO cancel_failures (phone) VALUES (?)", (phone,))
         raise ToolError("Zu diesem Buchungscode und dieser Telefonnummer finde ich keinen Termin.")
     if row["status"] == "cancelled":
         return {"storniert": True, "hinweis": "Der Termin war bereits abgesagt."}

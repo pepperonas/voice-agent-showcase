@@ -126,3 +126,36 @@ def test_callback_is_idempotent(conn):
     assert conn.execute("SELECT COUNT(*) FROM callbacks").fetchone()[0] == 1
     with pytest.raises(ToolError):
         request_callback(conn, {"name": "Max", "phone": "030 1234567"}, ctx())
+
+
+# --- Härtung (Sicherheitsprüfung) --------------------------------------------
+
+def test_booking_enforces_same_limits_as_availability(conn):
+    base = {"service": "beratung", "name": "A", "phone": "030 1234567"}
+    with pytest.raises(ToolError, match="frühestens"):
+        book_appointment(conn, {**base, "start": "2026-10-26T07:30"}, ctx())  # nur 30 min Vorlauf
+    with pytest.raises(ToolError, match="zwei Wochen"):
+        book_appointment(conn, {**base, "start": "2026-11-17T10:00"}, ctx())
+    with pytest.raises(ToolError, match="Uhrzeiten"):
+        book_appointment(conn, {**base, "start": "2026-10-26T10:10"}, ctx())
+
+
+def test_active_bookings_per_phone_are_capped(conn):
+    base = {"service": "beratung", "name": "A", "phone": "030 1234567"}
+    for i, t in enumerate(["10:00", "11:00", "12:00"]):
+        book_appointment(conn, {**base, "start": f"2026-10-26T{t}"}, ctx(f"p{i}"))
+    with pytest.raises(ToolError, match="mehrere Termine"):
+        book_appointment(conn, {**base, "start": "2026-10-26T13:00"}, ctx("p4"))
+    # andere Nummer ist nicht betroffen
+    book_appointment(conn, {**base, "phone": "030 7654321", "start": "2026-10-26T13:00"}, ctx("q"))
+
+
+def test_cancel_locks_after_repeated_failures(conn):
+    booked = book_appointment(conn, {"service": "beratung", "start": "2026-10-26T12:00",
+                                     "name": "A", "phone": "0151 11122233"}, ctx())
+    for wrong in range(5):
+        with pytest.raises(ToolError, match="keinen Termin"):
+            cancel_appointment(conn, {"code": f"00000{wrong}", "phone": "0151 11122233"}, CTX)
+    # jetzt gesperrt, auch der richtige Code geht nicht mehr
+    with pytest.raises(ToolError, match="Fehlversuche"):
+        cancel_appointment(conn, {"code": booked["buchungscode"], "phone": "0151 11122233"}, CTX)
