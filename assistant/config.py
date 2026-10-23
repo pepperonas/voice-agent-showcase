@@ -27,10 +27,46 @@ SUMMARY_PROMPT = ("Du fasst Telefonate eines Autohauses für das Team zusammen. 
                   "drei Sätze: Anliegen, Ergebnis (gebuchter Termin mit Leistung und Zeit, Rückrufwunsch oder "
                   "offen) und was das Team noch tun muss. Keine Telefonnummern. Nur die Zusammenfassung.")
 
-KEYTERMS = ["Kranich", "Probefahrt", "Inspektion", "Ölwechsel", "Reifenwechsel", "HU", "AU",
-            "Klimaservice", "Kennzeichen", "Buchungscode", "Kombi", "SUV", "Hybrid", "Elektro",
-            "Golf", "Passat", "Octavia", "Tesla", "Kona", "Corolla", "Corsa", "Kuga", "Clio",
-            "Ibiza", "ID.3", "Q3"]
+# Fachvokabular für die Spracherkennung: Marken und Modelle aus dem Bestand,
+# Leistungen und Begriffe, die am Telefon fallen.
+KEYTERMS = ["Autohaus Kranich", "Probefahrt", "Inspektion", "Ölwechsel", "Reifenwechsel", "HU", "AU",
+            "Hauptuntersuchung", "Klimaservice", "Kennzeichen", "Buchungscode", "Kombi", "SUV",
+            "Kleinwagen", "Hybrid", "Plug-in-Hybrid", "Elektro", "Automatik", "Schaltgetriebe",
+            "Volkswagen", "VW", "Skoda", "Seat", "Audi", "BMW", "Mercedes", "Opel", "Ford", "Renault",
+            "Toyota", "Hyundai", "Tesla", "Golf", "Passat", "Octavia", "Model 3", "Kona", "Corolla",
+            "Corsa", "Kuga", "Clio", "Ibiza", "ID.3", "Q3", "A-Klasse", "3er Touring",
+            "Finanzierung", "Inzahlungnahme"]
+
+
+def transcriber(preset: str = "soniox") -> dict:
+    """Spracherkennung. Voreinstellungen zum Vergleichen, Standard Soniox.
+
+    Vapis Standardprofil ist auf schnelles Turn-Taking getrimmt und beendet den
+    Redebeitrag schon bei kurzen Pausen; Anrufer, die eine Telefonnummer in
+    Gruppen diktieren, werden dabei abgeschnitten. Darum hier geduldiger.
+    """
+    deepgram = {"provider": "deepgram", "model": "nova-3", "language": "de", "keyterm": KEYTERMS,
+                "endpointing": 300}
+    presets = {
+        "soniox": {
+            "provider": "soniox", "model": "stt-rt-v5", "language": "de", "languageHintsStrict": True,
+            "customVocabulary": KEYTERMS,
+            "contextGeneral": [
+                {"key": "domain", "value": "Autohaus, Gebrauchtwagenverkauf und Werkstatt"},
+                {"key": "topic", "value": "Anrufer fragen nach Fahrzeugen, Probefahrten und Werkstattterminen"},
+            ],
+            "endpointSensitivity": -0.2,
+            "endpointLatencyAdjustmentLevel": 1,
+            "maxEndpointDelayMs": 1200,
+            "fallbackPlan": {"transcribers": [deepgram]},
+        },
+        "deepgram": deepgram,
+        "azure": {"provider": "azure", "language": "de-DE", "segmentationStrategy": "Semantic",
+                  "segmentationSilenceTimeoutMs": 800},
+    }
+    if preset not in presets:
+        raise ValueError(f"Unbekannte Spracherkennung '{preset}', möglich: {', '.join(presets)}")
+    return presets[preset]
 
 
 def _fn(name: str, description: str, properties: dict, required: list[str] | None = None,
@@ -109,13 +145,12 @@ def tools(transfer_number: str | None = None) -> list[dict]:
 
 
 def assistant(server_url: str, credential_id: str, transfer_number: str | None = None,
-              voice: dict | None = None) -> dict:
+              voice: dict | None = None, stt: str = "soniox") -> dict:
     return {
         "name": NAME,
         "firstMessage": FIRST_MESSAGE,
         "firstMessageMode": "assistant-speaks-first",
-        "transcriber": {"provider": "deepgram", "model": "nova-3", "language": "de",
-                        "keyterm": KEYTERMS, "numerals": True},
+        "transcriber": transcriber(stt),
         "model": {
             "provider": "anthropic",
             "model": "claude-haiku-5-5",

@@ -105,3 +105,10 @@ def test_caller_number_is_taken_from_vapi_call(tmp_path):
     assert "Mitarbeiter" in cancel("a-fremd", "+4930999")
     # von der hinterlegten Nummer aus wird weiter geprüft statt abgewiesen
     assert "keinen Termin" in cancel("a-echt", "030 1234567")
+
+
+def test_rejection_reason_is_logged_without_token(tmp_path, caplog):
+    c = client(tmp_path)
+    with caplog.at_level("WARNING"):
+        post(c, {"type": "tool-calls"}, token="x" * 40)
+    assert "falscher Token" in caplog.text and "x" * 40 not in caplog.text

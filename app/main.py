@@ -13,6 +13,7 @@ from app import db
 from app.vapi import handle_tool_calls, store_report
 
 TZ = ZoneInfo("Europe/Berlin")
+log = logging.getLogger("voice-agent")
 
 
 def create_app(db_path: str | None = None, token: str | None = None,
@@ -39,6 +40,11 @@ def create_app(db_path: str | None = None, token: str | None = None,
     async def webhook(request: Request):
         given = request.headers.get("authorization", "").encode()
         if not hmac.compare_digest(given, expected):
+            # Grund protokollieren, nie den Wert: hilft bei falsch eingerichteten Credentials.
+            reason = ("kein Authorization-Header" if not given else
+                      "ohne Bearer-Präfix" if not given.startswith(b"Bearer ") else
+                      f"falscher Token (Länge {len(given) - 7}, erwartet {len(token)})")
+            log.warning("Webhook abgelehnt: %s", reason)
             raise HTTPException(status_code=401)
         body = await request.json()
         message = body.get("message") or {}

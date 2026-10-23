@@ -92,3 +92,25 @@ def test_prompt_does_not_announce_tool_calls_itself():
     assert "sag kurz „Einen Moment" not in PROMPT
     assert all(t.get("messages") for t in tools() if t["type"] == "function"
                and t["function"]["name"] != "request_callback")
+
+
+def test_soniox_default_is_patient_with_pauses():
+    from assistant.config import KEYTERMS, transcriber
+    t = assistant("https://x.org/w", "c")["transcriber"]
+    assert t["provider"] == "soniox" and t["language"] == "de"
+    assert t["endpointSensitivity"] < 0  # Pausen beim Diktieren beenden den Beitrag nicht
+    assert "Seat" in t["customVocabulary"] and "Seat" in KEYTERMS
+    assert t["fallbackPlan"]["transcribers"][0]["provider"] == "deepgram"
+    assert transcriber("deepgram")["language"] == "de"
+    import pytest
+    with pytest.raises(ValueError):
+        transcriber("gibtsnicht")
+
+
+def test_credential_is_never_patched_and_name_tracks_token():
+    import inspect
+    from scripts import sync_assistant as s
+    assert "c.patch(f\"/credential" not in inspect.getsource(s)
+    assert s.credential_name("a" * 32) != s.credential_name("b" * 32)
+    assert s.credential_name("a" * 32).startswith(s.CREDENTIAL_NAME)
+    assert "a" * 32 not in s.credential_name("a" * 32)
