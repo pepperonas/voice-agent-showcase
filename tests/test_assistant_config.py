@@ -72,3 +72,23 @@ def test_privacy_and_webhook_settings():
 
 def test_agent_can_hang_up():
     assert any(t["type"] == "endCall" for t in tools())
+
+
+def test_english_number_formatting_is_off_for_german_voice():
+    fmt = assistant("https://x.org/w", "c")["voice"]["chunkPlan"]["formatPlan"]
+    assert not {"number", "dollarAmount", "date", "time", "percentage", "phoneNumber"} & set(fmt["formattersEnabled"])
+    assert {"type": "exact", "key": "Seat", "value": "Se-at", "replaceAllEnabled": True} in fmt["replacements"]
+
+
+def test_german_summary_is_enabled():
+    plan = assistant("https://x.org/w", "c")["analysisPlan"]["summaryPlan"]
+    assert plan["enabled"] and "Deutsch" in plan["messages"][0]["content"]
+    assert "{{transcript}}" in plan["messages"][1]["content"]
+
+
+def test_prompt_does_not_announce_tool_calls_itself():
+    # Die Ansage kommt aus den request-start-Nachrichten; beides zusammen ergab "Einen einen Moment".
+    from assistant.config import PROMPT
+    assert "sag kurz „Einen Moment" not in PROMPT
+    assert all(t.get("messages") for t in tools() if t["type"] == "function"
+               and t["function"]["name"] != "request_callback")

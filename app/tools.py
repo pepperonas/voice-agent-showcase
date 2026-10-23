@@ -211,7 +211,7 @@ def _confirmation(row: sqlite3.Row) -> dict:
     return {
         "gebucht": True,
         "buchungscode": code,
-        "buchungscode_gesprochen": f"{code[:3]} {code[3:]}",
+        "buchungscode_gesprochen": f"{' '.join(code[:3])}, {' '.join(code[3:])}",
         "termin": say_time(start),
         "leistung": SERVICES[row["service"]].label,
     }

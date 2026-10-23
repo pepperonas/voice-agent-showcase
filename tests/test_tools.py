@@ -109,7 +109,7 @@ def test_weekend_request_moves_to_next_open_day(conn):
 def test_cancel_needs_matching_phone(conn):
     booked = book_appointment(conn, {"service": "beratung", "start": "2026-10-26T12:00",
                                      "name": "A", "phone": "0151 11122233"}, ctx())
-    code = booked["buchungscode_gesprochen"]  # "123 456" mit Leerzeichen, wie gesprochen
+    code = booked["buchungscode_gesprochen"]  # "1 2 3, 4 5 6", wie gesprochen
     with pytest.raises(ToolError):
         cancel_appointment(conn, {"code": code, "phone": "0151 99999999"}, CTX)
     out = cancel_appointment(conn, {"code": code, "phone": "+49 151 11122233"}, CTX)
