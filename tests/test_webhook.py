@@ -90,3 +90,18 @@ def test_call_id_from_vapi_scopes_the_cancel_lock(tmp_path):
     assert "Fehlversuche" in cancel("call-1", "111111")
     # ein neuer Anruf startet ohne Sperre
     assert "keinen Termin" in cancel("call-2", "111111")
+
+
+def test_caller_number_is_taken_from_vapi_call(tmp_path):
+    c = client(tmp_path)
+
+    def cancel(call_id, caller):
+        msg = {"type": "tool-calls", "call": {"id": call_id, "customer": {"number": caller}},
+               "toolCallList": [tool_call("x", "cancel_appointment", {"code": "1", "phone": "030 1234567"})]}
+        return post(c, msg).json()["results"][0]["error"]
+
+    for i in range(10):
+        cancel(f"a{i}", "+4930999")
+    assert "Mitarbeiter" in cancel("a-fremd", "+4930999")
+    # von der hinterlegten Nummer aus wird weiter geprüft statt abgewiesen
+    assert "keinen Termin" in cancel("a-echt", "030 1234567")

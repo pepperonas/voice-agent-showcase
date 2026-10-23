@@ -25,6 +25,10 @@ BODIES = {"kleinwagen", "kompakt", "kombi", "limousine", "suv"}
 # der Anrufer selbst, eine Sperre darauf könnte er gegen fremde Kunden richten.
 MAX_BOOKINGS_PER_CALL = 3
 CANCEL_MAX_FAILURES_PER_CALL = 3
+# Über viele Anrufe hinweg: ab so vielen Fehlversuchen je Nummer in 24 h wird
+# ein Storno nur noch angenommen, wenn die echte Anrufernummer passt. Keine
+# harte Sperre, damit niemand einen fremden Kunden aussperren kann.
+CANCEL_PHONE_FAILURES_BEFORE_CALLER_CHECK = 10
 
 
 class ToolError(Exception):
@@ -36,6 +40,7 @@ class Ctx:
     now: datetime
     tool_call_id: str | None = None
     call_id: str = "-"  # Vapi call.id; "-" nur außerhalb echter Anrufe (Tests, lokale Proben)
+    caller_number: str | None = None  # Vapi call.customer.number, bei Web-Calls leer
 
 
 def say_time(t: datetime) -> str:
@@ -271,9 +276,14 @@ def cancel_appointment(conn: sqlite3.Connection, args: dict, ctx: Ctx) -> dict:
                                 (ctx.call_id,)).fetchone()[0]
         if failures >= CANCEL_MAX_FAILURES_PER_CALL:
             raise ToolError("Zu viele Fehlversuche in diesem Gespräch. Bitte an einen Mitarbeiter übergeben.")
+        per_phone = conn.execute(
+            "SELECT COUNT(*) FROM cancel_failures WHERE phone = ? AND created_at >= datetime('now', '-24 hours')",
+            (phone,)).fetchone()[0]
+        if per_phone >= CANCEL_PHONE_FAILURES_BEFORE_CALLER_CHECK and ctx.caller_number != phone:
+            raise ToolError("Für diese Nummer kann ich gerade nicht selbst absagen. Bitte an einen Mitarbeiter übergeben.")
         row = conn.execute("SELECT * FROM appointments WHERE code = ? AND phone = ?", (code, phone)).fetchone()
         if row is None:
-            conn.execute("INSERT INTO cancel_failures (call_id) VALUES (?)", (ctx.call_id,))
+            conn.execute("INSERT INTO cancel_failures (call_id, phone) VALUES (?, ?)", (ctx.call_id, phone))
             conn.commit()
             raise ToolError("Zu diesem Buchungscode und dieser Telefonnummer finde ich keinen Termin.")
         conn.commit()

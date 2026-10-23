@@ -163,3 +163,19 @@ def test_cancel_failures_lock_only_the_attacking_call(conn):
     # der echte Kunde in seinem eigenen Anruf kann trotzdem absagen
     owner = Ctx(now=NOW, call_id="call-kunde")
     assert cancel_appointment(conn, {"code": booked["buchungscode"], "phone": "0151 11122233"}, owner)["storniert"]
+
+
+def test_many_calls_cannot_brute_force_but_owner_still_cancels(conn):
+    booked = book_appointment(conn, {"service": "beratung", "start": "2026-10-26T12:00",
+                                     "name": "A", "phone": "0151 11122233"}, ctx())
+    # Angreifer verteilt Fehlversuche auf viele Anrufe (je neue call.id)
+    for i in range(10):
+        with pytest.raises(ToolError, match="keinen Termin"):
+            cancel_appointment(conn, {"code": "000000", "phone": "0151 11122233"},
+                               Ctx(now=NOW, call_id=f"angriff-{i}", caller_number="+4930999"))
+    # danach auch mit dem richtigen Code nur noch von der hinterlegten Nummer aus
+    with pytest.raises(ToolError, match="Mitarbeiter"):
+        cancel_appointment(conn, {"code": booked["buchungscode"], "phone": "0151 11122233"},
+                           Ctx(now=NOW, call_id="angriff-x", caller_number="+4930999"))
+    owner = Ctx(now=NOW, call_id="kunde", caller_number="+4915111122233")
+    assert cancel_appointment(conn, {"code": booked["buchungscode"], "phone": "0151 11122233"}, owner)["storniert"]
