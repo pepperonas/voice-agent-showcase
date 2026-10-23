@@ -140,22 +140,26 @@ def test_booking_enforces_same_limits_as_availability(conn):
         book_appointment(conn, {**base, "start": "2026-10-26T10:10"}, ctx())
 
 
-def test_active_bookings_per_phone_are_capped(conn):
+def test_bookings_per_call_are_capped(conn):
     base = {"service": "beratung", "name": "A", "phone": "030 1234567"}
+    call = lambda tc, cid="call-A": Ctx(now=NOW, tool_call_id=tc, call_id=cid)
     for i, t in enumerate(["10:00", "11:00", "12:00"]):
-        book_appointment(conn, {**base, "start": f"2026-10-26T{t}"}, ctx(f"p{i}"))
+        book_appointment(conn, {**base, "start": f"2026-10-26T{t}"}, call(f"p{i}"))
     with pytest.raises(ToolError, match="mehrere Termine"):
-        book_appointment(conn, {**base, "start": "2026-10-26T13:00"}, ctx("p4"))
-    # andere Nummer ist nicht betroffen
-    book_appointment(conn, {**base, "phone": "030 7654321", "start": "2026-10-26T13:00"}, ctx("q"))
+        book_appointment(conn, {**base, "start": "2026-10-26T13:00"}, call("p4"))
+    # ein anderer Anruf mit derselben Nummer ist nicht blockiert (keine Sperre gegen fremde Nummern)
+    book_appointment(conn, {**base, "start": "2026-10-26T13:00"}, call("q", "call-B"))
 
 
-def test_cancel_locks_after_repeated_failures(conn):
+def test_cancel_failures_lock_only_the_attacking_call(conn):
     booked = book_appointment(conn, {"service": "beratung", "start": "2026-10-26T12:00",
                                      "name": "A", "phone": "0151 11122233"}, ctx())
-    for wrong in range(5):
+    attacker = Ctx(now=NOW, call_id="call-angreifer")
+    for wrong in range(3):
         with pytest.raises(ToolError, match="keinen Termin"):
-            cancel_appointment(conn, {"code": f"00000{wrong}", "phone": "0151 11122233"}, CTX)
-    # jetzt gesperrt, auch der richtige Code geht nicht mehr
+            cancel_appointment(conn, {"code": f"00000{wrong}", "phone": "0151 11122233"}, attacker)
     with pytest.raises(ToolError, match="Fehlversuche"):
-        cancel_appointment(conn, {"code": booked["buchungscode"], "phone": "0151 11122233"}, CTX)
+        cancel_appointment(conn, {"code": booked["buchungscode"], "phone": "0151 11122233"}, attacker)
+    # der echte Kunde in seinem eigenen Anruf kann trotzdem absagen
+    owner = Ctx(now=NOW, call_id="call-kunde")
+    assert cancel_appointment(conn, {"code": booked["buchungscode"], "phone": "0151 11122233"}, owner)["storniert"]

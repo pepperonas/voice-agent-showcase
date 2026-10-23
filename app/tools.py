@@ -21,9 +21,10 @@ from app.domain import (LEAD_TIME, MAX_DAYS_AHEAD, SERVICES, SLOT_STEP, Booking,
 WEEKDAYS = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 FUELS = {"benzin", "diesel", "elektro", "hybrid"}
 BODIES = {"kleinwagen", "kompakt", "kombi", "limousine", "suv"}
-MAX_ACTIVE_BOOKINGS_PER_PHONE = 3
-CANCEL_MAX_FAILURES = 5          # Fehlversuche je Telefonnummer ...
-CANCEL_FAILURE_WINDOW_H = 24     # ... innerhalb dieses Zeitfensters
+# Grenzen hängen an der Anruf-ID von Vapi, nicht an der Telefonnummer: die nennt
+# der Anrufer selbst, eine Sperre darauf könnte er gegen fremde Kunden richten.
+MAX_BOOKINGS_PER_CALL = 3
+CANCEL_MAX_FAILURES_PER_CALL = 3
 
 
 class ToolError(Exception):
@@ -34,6 +35,7 @@ class ToolError(Exception):
 class Ctx:
     now: datetime
     tool_call_id: str | None = None
+    call_id: str = "-"  # Vapi call.id; "-" nur außerhalb echter Anrufe (Tests, lokale Proben)
 
 
 def say_time(t: datetime) -> str:
@@ -237,21 +239,20 @@ def book_appointment(conn: sqlite3.Connection, args: dict, ctx: Ctx) -> dict:
     end = start + timedelta(minutes=service.minutes)
     conn.execute("BEGIN IMMEDIATE")
     try:
-        active = conn.execute(
-            "SELECT COUNT(*) FROM appointments WHERE phone = ? AND status = 'booked' AND start >= ?",
-            (phone, ctx.now.isoformat(timespec="minutes"))).fetchone()[0]
-        if active >= MAX_ACTIVE_BOOKINGS_PER_PHONE:
-            raise ToolError("Für diese Nummer sind bereits mehrere Termine offen. Bitte an einen Mitarbeiter übergeben.")
+        in_call = conn.execute("SELECT COUNT(*) FROM appointments WHERE call_id = ?",
+                               (ctx.call_id,)).fetchone()[0]
+        if in_call >= MAX_BOOKINGS_PER_CALL:
+            raise ToolError("In diesem Gespräch wurden schon mehrere Termine gebucht. Bitte an einen Mitarbeiter übergeben.")
         if not is_slot_free(service, start, _bookings(conn, start.date(), start.date()), vid):
             raise ToolError("Dieser Termin ist leider nicht mehr frei. Bitte erneut nach freien Zeiten suchen.")
         code = _new_code(conn)
         conn.execute(
             "INSERT INTO appointments (code, service, department, start, end, vehicle_id, name, phone,"
-            " license_plate, notes, tool_call_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            " license_plate, notes, tool_call_id, call_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (code, service.key, service.department, start.isoformat(timespec="minutes"),
              end.isoformat(timespec="minutes"), vid, name, phone,
              _text(args, "license_plate", required=False, max_len=15),
-             _text(args, "notes", required=False, max_len=500), ctx.tool_call_id))
+             _text(args, "notes", required=False, max_len=500), ctx.tool_call_id, ctx.call_id))
         conn.commit()
     except Exception:
         conn.rollback()
@@ -262,17 +263,24 @@ def book_appointment(conn: sqlite3.Connection, args: dict, ctx: Ctx) -> dict:
 def cancel_appointment(conn: sqlite3.Connection, args: dict, ctx: Ctx) -> dict:
     code = re.sub(r"\D", "", _text(args, "code", max_len=20))
     phone = normalize_phone(_text(args, "phone", max_len=40))
-    # Gegen Durchprobieren: Fehlversuche je Telefonnummer zählen und sperren.
-    window = f"-{CANCEL_FAILURE_WINDOW_H} hours"
-    failures = conn.execute(
-        "SELECT COUNT(*) FROM cancel_failures WHERE phone = ? AND created_at >= datetime('now', ?)",
-        (phone, window)).fetchone()[0]
-    if failures >= CANCEL_MAX_FAILURES:
-        raise ToolError("Zu viele Fehlversuche. Bitte an einen Mitarbeiter übergeben.")
-    row = conn.execute("SELECT * FROM appointments WHERE code = ? AND phone = ?", (code, phone)).fetchone()
-    if row is None:
-        conn.execute("INSERT INTO cancel_failures (phone) VALUES (?)", (phone,))
-        raise ToolError("Zu diesem Buchungscode und dieser Telefonnummer finde ich keinen Termin.")
+    # Gegen Durchprobieren: wenige Fehlversuche je Anruf. Bei 900.000 Codes und
+    # drei Versuchen pro Anruf bräuchte ein Angreifer Hunderttausende Anrufe.
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        failures = conn.execute("SELECT COUNT(*) FROM cancel_failures WHERE call_id = ?",
+                                (ctx.call_id,)).fetchone()[0]
+        if failures >= CANCEL_MAX_FAILURES_PER_CALL:
+            raise ToolError("Zu viele Fehlversuche in diesem Gespräch. Bitte an einen Mitarbeiter übergeben.")
+        row = conn.execute("SELECT * FROM appointments WHERE code = ? AND phone = ?", (code, phone)).fetchone()
+        if row is None:
+            conn.execute("INSERT INTO cancel_failures (call_id) VALUES (?)", (ctx.call_id,))
+            conn.commit()
+            raise ToolError("Zu diesem Buchungscode und dieser Telefonnummer finde ich keinen Termin.")
+        conn.commit()
+    except ToolError:
+        if conn.in_transaction:
+            conn.rollback()
+        raise
     if row["status"] == "cancelled":
         return {"storniert": True, "hinweis": "Der Termin war bereits abgesagt."}
     conn.execute("UPDATE appointments SET status = 'cancelled' WHERE id = ?", (row["id"],))

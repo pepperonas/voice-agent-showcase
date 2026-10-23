@@ -28,8 +28,9 @@ def _arguments(fn: dict) -> dict:
 
 def handle_tool_calls(conn: sqlite3.Connection, message: dict, now: datetime) -> dict:
     results = []
+    call_id = str((message.get("call") or {}).get("id") or "-")
     for call in message.get("toolCallList") or []:
-        call_id = call.get("id", "")
+        tc_id = call.get("id", "")
         fn = call.get("function") or {}
         name = fn.get("name", "")
         args = _arguments(fn)
@@ -39,15 +40,15 @@ def handle_tool_calls(conn: sqlite3.Connection, message: dict, now: datetime) ->
                 raise ToolError(f"Unbekanntes Werkzeug '{name}'.")
             if args.get("__invalid__"):
                 raise ToolError("Die Argumente waren kein gültiges JSON.")
-            out = handler(conn, args, Ctx(now=now, tool_call_id=call_id or None))
-            results.append({"toolCallId": call_id,
+            out = handler(conn, args, Ctx(now=now, tool_call_id=tc_id or None, call_id=call_id))
+            results.append({"toolCallId": tc_id,
                             "result": json.dumps({k: v for k, v in out.items() if v is not None},
                                                  ensure_ascii=False)})
         except ToolError as e:
-            results.append({"toolCallId": call_id, "error": str(e)})
+            results.append({"toolCallId": tc_id, "error": str(e)})
         except Exception:
             log.exception("Tool %s fehlgeschlagen", name)
-            results.append({"toolCallId": call_id,
+            results.append({"toolCallId": tc_id,
                             "error": "Technischer Fehler. Bitte Rückruf anbieten."})
     return {"results": results}
 

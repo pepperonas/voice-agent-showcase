@@ -75,3 +75,18 @@ def test_end_of_call_report_is_stored_without_transcript(tmp_path):
 
 def test_other_message_types_are_acknowledged(tmp_path):
     assert post(client(tmp_path), {"type": "status-update"}).json() == {}
+
+
+def test_call_id_from_vapi_scopes_the_cancel_lock(tmp_path):
+    c = client(tmp_path)
+
+    def cancel(call_id, code):
+        msg = {"type": "tool-calls", "call": {"id": call_id}, "toolCallList": [
+            tool_call("x", "cancel_appointment", {"code": code, "phone": "030 1234567"})]}
+        return post(c, msg).json()["results"][0]["error"]
+
+    for _ in range(3):
+        assert "keinen Termin" in cancel("call-1", "111111")
+    assert "Fehlversuche" in cancel("call-1", "111111")
+    # ein neuer Anruf startet ohne Sperre
+    assert "keinen Termin" in cancel("call-2", "111111")

@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS appointments (
     license_plate TEXT, notes TEXT,
     status TEXT NOT NULL DEFAULT 'booked',
     tool_call_id TEXT UNIQUE,
+    call_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS callbacks (
@@ -35,10 +36,10 @@ CREATE TABLE IF NOT EXISTS callbacks (
 );
 CREATE TABLE IF NOT EXISTS cancel_failures (
     id INTEGER PRIMARY KEY,
-    phone TEXT NOT NULL,
+    call_id TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-CREATE INDEX IF NOT EXISTS ix_cancel_failures_phone ON cancel_failures(phone, created_at);
+CREATE INDEX IF NOT EXISTS ix_cancel_failures_call ON cancel_failures(call_id);
 CREATE TABLE IF NOT EXISTS call_reports (
     call_id TEXT PRIMARY KEY,
     ended_reason TEXT, duration_seconds REAL, cost_usd REAL,
