@@ -23,9 +23,15 @@ FORMATTERS = ["markdown", "asterisk", "stripAsterisk", "quote", "newline", "dash
 REPLACEMENTS = [("Seat", "Se-at"), ("ID.3", "I D 3"), ("HU/AU", "H U und A U"), ("TSI", "T S I"),
                 ("TDI", "T D I"), ("TFSI", "T F S I"), ("kWh", "Kilowattstunden")]
 
+# Ein Anrufbericht, der eine Zusage behauptet, die nie im System angekommen ist, ist
+# schlimmer als keiner: das Team verlässt sich darauf. Darum gilt nur, was ein Werkzeug
+# bestätigt hat (Testanruf 29.10.: "Rückruf vereinbart", obwohl keiner angelegt war).
 SUMMARY_PROMPT = ("Du fasst Telefonate eines Autohauses für das Team zusammen. Schreibe auf Deutsch zwei bis "
-                  "drei Sätze: Anliegen, Ergebnis (gebuchter Termin mit Leistung und Zeit, Rückrufwunsch oder "
-                  "offen) und was das Team noch tun muss. Keine Telefonnummern. Nur die Zusammenfassung.")
+                  "drei Sätze im Klartext ohne Markdown: Anliegen, Ergebnis und was das Team noch tun muss. "
+                  "Als erledigt gilt nur, was ein Werkzeug bestätigt hat: ein Termin mit Buchungscode, ein "
+                  "angelegter Rückruf, eine bestätigte Absage. Hat die KI etwas nur angeboten oder endete das "
+                  "Gespräch vorher, schreibe ausdrücklich, dass es offen ist und keine Daten aufgenommen wurden. "
+                  "Keine Telefonnummern. Nur die Zusammenfassung.")
 
 # Fachvokabular für die Spracherkennung: Marken und Modelle aus dem Bestand,
 # Leistungen und Begriffe, die am Telefon fallen.

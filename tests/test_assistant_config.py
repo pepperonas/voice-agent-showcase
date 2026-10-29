@@ -114,3 +114,9 @@ def test_credential_is_never_patched_and_name_tracks_token():
     assert s.credential_name("a" * 32) != s.credential_name("b" * 32)
     assert s.credential_name("a" * 32).startswith(s.CREDENTIAL_NAME)
     assert "a" * 32 not in s.credential_name("a" * 32)
+
+
+def test_summary_only_counts_what_a_tool_confirmed():
+    from assistant.config import SUMMARY_PROMPT
+    assert "bestätigt" in SUMMARY_PROMPT and "offen" in SUMMARY_PROMPT
+    assert "ohne Markdown" in SUMMARY_PROMPT
