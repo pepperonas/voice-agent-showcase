@@ -175,6 +175,8 @@ def assistant(server_url: str, credential_id: str, transfer_number: str | None =
             {"role": "user", "content": "Gespräch:\n\n{{transcript}}\n\nEnde-Grund: {{endedReason}}"}]}},
         "server": {"url": server_url, "credentialId": credential_id, "timeoutSeconds": 10},
         "serverMessages": ["tool-calls", "end-of-call-report"],
+        # An den Browser (Testseite /demo): Transkript und Tool-Aufrufe live anzeigen.
+        "clientMessages": ["transcript", "tool-calls", "status-update", "speech-update"],
         "endCallMessage": "Vielen Dank für Ihren Anruf beim Autohaus Kranich. Auf Wiederhören!",
         "maxDurationSeconds": 600,
         "artifactPlan": {"recordingEnabled": False},

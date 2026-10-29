@@ -120,3 +120,8 @@ def test_summary_only_counts_what_a_tool_confirmed():
     from assistant.config import SUMMARY_PROMPT
     assert "bestätigt" in SUMMARY_PROMPT and "offen" in SUMMARY_PROMPT
     assert "ohne Markdown" in SUMMARY_PROMPT
+
+
+def test_demo_page_receives_transcript_and_tool_calls():
+    cfg = assistant("https://x.org/w", "c")
+    assert {"transcript", "tool-calls"} <= set(cfg["clientMessages"])

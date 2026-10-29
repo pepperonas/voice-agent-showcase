@@ -1,0 +1,44 @@
+<!doctype html><html lang="de"><head><meta charset="utf-8"><style>
+html,body{margin:0}
+.b{width:1280px;height:480px;position:relative;overflow:hidden;font-family:-apple-system,"SF Pro Display","Segoe UI",system-ui,sans-serif;
+background:radial-gradient(900px 500px at 85% 20%,#1e4f78 0%,transparent 60%),radial-gradient(700px 420px at 10% 110%,#3b2a63 0%,transparent 60%),linear-gradient(135deg,#0b1220,#101a2c 60%,#0d1526);color:#eef3fa}
+.txt{position:absolute;left:72px;top:104px;width:660px}
+.kick{font-size:18px;letter-spacing:.18em;text-transform:uppercase;color:#7cc0ee;font-weight:600}
+h1{font-size:50px;line-height:1.08;margin:12px 0 16px;font-weight:800;letter-spacing:-.02em}
+p{font-size:21px;line-height:1.45;color:#b9c6d8;margin:0 0 24px}
+.chips{display:flex;gap:10px;flex-wrap:wrap}
+.chip{font-size:16px;font-weight:600;padding:8px 14px;border-radius:999px;background:rgba(124,192,238,.12);border:1px solid rgba(124,192,238,.35);color:#cfe7f8}
+svg{position:absolute;right:40px;top:58px}
+</style></head><body><div class="b">
+<div class="txt">
+<div class="kick">Voice Agent Showcase</div>
+<h1>Lena, die KI am Telefon des Autohauses</h1>
+<p>Sucht im Fahrzeugbestand, bucht Probefahrten und Werkstatttermine, sagt ab und legt Rückrufe an. Auf Deutsch, ohne Aufzeichnung.</p>
+<div class="chips"><span class="chip">Vapi</span><span class="chip">FastAPI</span><span class="chip">Claude Haiku 5.5</span><span class="chip">Soniox STT</span><span class="chip">SQLite</span></div>
+</div>
+<svg width="520" height="400" viewBox="0 0 520 400" aria-hidden="true">
+<defs>
+<linearGradient id="g" x1="0" x2="1"><stop offset="0" stop-color="#7cc0ee"/><stop offset="1" stop-color="#b59cff"/></linearGradient>
+<linearGradient id="car" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#2c4a6e"/><stop offset="1" stop-color="#16263d"/></linearGradient>
+</defs>
+<!-- Telefonhörer im Kreis -->
+<circle cx="260" cy="150" r="112" fill="rgba(124,192,238,.08)" stroke="rgba(124,192,238,.35)" stroke-width="2"/>
+<circle cx="260" cy="150" r="78" fill="rgba(124,192,238,.12)"/>
+<path d="M226 118c6-6 15-6 20 0l10 12c4 5 3 12-1 16l-7 6c6 13 16 23 29 29l6-7c4-4 11-5 16-1l12 10c6 5 6 14 0 20l-8 8c-8 8-21 9-31 3c-27-15-48-36-63-63c-6-10-5-23 3-31z" fill="url(#g)"/>
+<!-- Schallwellen -->
+<g fill="url(#g)">
+<rect x="40" y="132" width="10" height="36" rx="5" opacity=".5"/><rect x="60" y="112" width="10" height="76" rx="5" opacity=".65"/>
+<rect x="80" y="122" width="10" height="56" rx="5" opacity=".8"/><rect x="100" y="98" width="10" height="104" rx="5"/>
+<rect x="120" y="126" width="10" height="48" rx="5" opacity=".75"/>
+<rect x="390" y="126" width="10" height="48" rx="5" opacity=".75"/><rect x="410" y="98" width="10" height="104" rx="5"/>
+<rect x="430" y="122" width="10" height="56" rx="5" opacity=".8"/><rect x="450" y="112" width="10" height="76" rx="5" opacity=".65"/>
+<rect x="470" y="132" width="10" height="36" rx="5" opacity=".5"/>
+</g>
+<!-- Auto -->
+<g transform="translate(110 272)">
+<path d="M20 60 L40 28 C48 16 60 10 76 10 L208 10 C224 10 236 16 246 28 L270 56 L292 62 C300 64 304 70 304 78 L304 88 L0 88 L0 76 C0 66 8 60 20 60 Z" fill="url(#car)" stroke="#7cc0ee" stroke-width="2.5"/>
+<path d="M62 30 L80 18 L140 18 L140 56 L46 56 Z" fill="rgba(124,192,238,.22)"/><path d="M152 18 L206 18 C216 18 224 22 230 30 L252 56 L152 56 Z" fill="rgba(124,192,238,.22)"/>
+<circle cx="70" cy="90" r="22" fill="#0b1220" stroke="#b59cff" stroke-width="5"/><circle cx="238" cy="90" r="22" fill="#0b1220" stroke="#b59cff" stroke-width="5"/>
+</g>
+</svg>
+</div></body></html>
