@@ -142,15 +142,24 @@ cd voice-agent-showcase
 cp .env.example .env                 # Schlüssel eintragen, WEBHOOK_TOKEN: openssl rand -hex 24
 uv sync
 uv run pytest -q                     # 48 Tests, ohne Netzwerk
+```
 
+**Einmalig** den Assistenten bei Vapi anlegen (braucht eine öffentliche https-Adresse, z. B. über `cloudflared tunnel --url http://localhost:8787`):
+
+```bash
 set -a; . ./.env; set +a
-uv run uvicorn app.main:create_app --factory --port 8787
-cloudflared tunnel --url http://localhost:8787      # zweites Terminal, liefert eine https-Adresse
-
 PUBLIC_URL=https://<tunnel>.trycloudflare.com uv run python -m scripts.sync_assistant
 ```
 
-Danach die ausgegebene Assistenten-ID als `VAPI_ASSISTANT_ID` in `.env` eintragen, den Server neu starten und **http://localhost:8787/demo** öffnen.
+Die ausgegebene Assistenten-ID als `VAPI_ASSISTANT_ID` in `.env` eintragen.
+
+**Danach startet die Demo mit einem Befehl:**
+
+```bash
+./demo.sh
+```
+
+Das Skript startet Server und Tunnel, wartet, bis die neue Adresse öffentlich erreichbar ist, teilt sie Vapi mit und öffnet **http://localhost:8787/demo**. Ctrl+C beendet alles wieder. Logs liegen in `.demo/`.
 
 > **Hinweis:** Der Testknopf im Vapi-Dashboard schickt die Einstellungen des geöffneten Browser-Tabs mit. Nach einem Sync testet er unter Umständen eine alte Version. `/demo` umgeht das.
 
@@ -199,6 +208,7 @@ assistant/
   config.py        Assistent als Code: Tools, Spracherkennung, Stimme, Zusammenfassung
 scripts/
   sync_assistant.py  Legt Credential und Assistenten über die Vapi-API an oder aktualisiert sie
+demo.sh              Startet Server, Tunnel und Vapi-Sync mit einem Befehl
 data/inventory.json  14 fiktive Gebrauchtwagen
 docs/PLAN.md         Plan und Fachregeln
 tests/               48 Tests
