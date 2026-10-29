@@ -44,8 +44,14 @@ def credential_name(token: str) -> str:
 def ensure_credential(c: httpx.Client, token: str) -> tuple[str, list[str]]:
     """Liefert die Credential-ID und die IDs veralteter Credentials (zum Aufräumen).
 
-    Ein bestehendes Credential wird nie per PATCH geändert: nach einem PATCH lehnte
-    der Webhook die Anfragen von Vapi mit 401 ab (2026-10-23, zweiter Testanruf).
+    Ein bestehendes Credential wird nicht per PATCH geändert, sondern über den
+    Token-Fingerabdruck ersetzt; so ist jederzeit klar, welcher Token gilt.
+
+    Achtung beim Testen: "Talk to Assistant" im Vapi-Dashboard schickt die
+    Konfiguration des geöffneten Browser-Tabs als assistantOverrides mit. Ein Tab
+    von vor einem Sync ruft die alte Server-Adresse auf, und weil die Adresse dann
+    aus den Overrides stammt, sendet Vapi kein Credential (Webhook antwortet 401).
+    Nach jedem Sync die Dashboard-Seite neu laden.
     """
     name = credential_name(token)
     mine = [x for x in _check(c.get("/credential")) if str(x.get("name", "")).startswith(CREDENTIAL_NAME)]
