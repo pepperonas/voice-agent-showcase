@@ -9,7 +9,7 @@ Der Assistent sucht im Fahrzeugbestand, vergibt Termine für Probefahrten, Verka
 - [x] Schritt 1: Tool-Server mit SQLite und Tests (ohne Vapi)
 - [x] Schritt 2: Assistent als Code und Sync über die Vapi-API
 - [x] Schritt 3: Web-Call über Tunnel (erster Testanruf erfolgreich)
-- [ ] Schritt 4: Übersichtsseite
+- [ ] Schritt 4: Übersichtsseite (Testseite `/demo` für Anrufe steht, nur lokal)
 - [ ] Schritt 5: Telefonnummer (nur nach OK)
 
 ## Lokal starten

@@ -5,9 +5,11 @@ import hmac
 import logging
 import os
 from datetime import datetime
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import HTMLResponse
 
 from app import db
 from app.vapi import handle_tool_calls, store_report
@@ -35,6 +37,23 @@ def create_app(db_path: str | None = None, token: str | None = None,
     @app.get("/health")
     def health():
         return {"ok": True}
+
+    demo_html = (Path(__file__).parent / "demo.html").read_text(encoding="utf-8")
+
+    @app.get("/demo", response_class=HTMLResponse)
+    def demo(request: Request):
+        # Nur lokal: über den Tunnel könnte sonst jeder Anrufe auf eigene Kosten starten.
+        # Der Tunnel kommt ebenfalls von 127.0.0.1, verrät sich aber über Host und CF-Header.
+        host = request.headers.get("host", "").split(":")[0]
+        if (request.headers.get("cf-connecting-ip") or host not in ("localhost", "127.0.0.1")
+                or (request.client and request.client.host not in ("127.0.0.1", "::1"))):
+            raise HTTPException(status_code=404)
+        public_key = os.environ.get("VAPI_PUBLIC_KEY", "")
+        assistant_id = os.environ.get("VAPI_ASSISTANT_ID", "")
+        if not public_key or not assistant_id:
+            return HTMLResponse("VAPI_PUBLIC_KEY und VAPI_ASSISTANT_ID in .env setzen.", status_code=503)
+        page = demo_html.replace("__PUBLIC_KEY__", public_key).replace("__ASSISTANT_ID__", assistant_id)
+        return HTMLResponse(page, headers={"Cache-Control": "no-store"})
 
     @app.post("/vapi/webhook")
     async def webhook(request: Request):

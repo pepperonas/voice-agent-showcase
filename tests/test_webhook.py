@@ -112,3 +112,20 @@ def test_rejection_reason_is_logged_without_token(tmp_path, caplog):
     with caplog.at_level("WARNING"):
         post(c, {"type": "tool-calls"}, token="x" * 40)
     assert "falscher Token" in caplog.text and "x" * 40 not in caplog.text
+
+
+def test_demo_page_only_locally(tmp_path, monkeypatch):
+    monkeypatch.setenv("VAPI_PUBLIC_KEY", "pub-123")
+    monkeypatch.setenv("VAPI_ASSISTANT_ID", "asst-456")
+    from fastapi.testclient import TestClient
+    app = create_app(db_path=str(tmp_path / "d.db"), token=TOKEN, clock=lambda: NOW)
+    local = TestClient(app, base_url="http://localhost:8787", client=("127.0.0.1", 50000))
+    r = local.get("/demo")
+    assert r.status_code == 200 and "pub-123" in r.text and "asst-456" in r.text
+    # über den Tunnel: fremder Host bzw. Cloudflare-Header
+    assert TestClient(app, base_url="https://abc.trycloudflare.com",
+                      client=("127.0.0.1", 50000)).get("/demo").status_code == 404
+    assert local.get("/demo", headers={"cf-connecting-ip": "1.2.3.4"}).status_code == 404
+    # der Private Key landet nie auf der Seite
+    monkeypatch.setenv("VAPI_API_KEY", "privat-geheim")
+    assert "privat-geheim" not in local.get("/demo").text

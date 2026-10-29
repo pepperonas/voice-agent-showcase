@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Autohaus Kranich: Testanruf</title>
+<link rel="icon" href="data:,">
+<style>
+  :root { --bg:#f6f5f2; --card:#fff; --ink:#1d1f24; --muted:#5d6270; --line:#e2e0da; --accent:#1f5f8b; --on-accent:#fff; --ok:#1e7a46; --err:#b42318; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#14161a; --card:#1d2026; --ink:#eceef2; --muted:#a3a8b4; --line:#2c3038; --accent:#7cc0ee; --on-accent:#0b1a24; --ok:#6fd39a; --err:#ff8a80; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  p.sub { margin: 0 0 24px; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 20px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 999px; padding: 12px 22px; cursor: pointer; background: var(--accent); color: var(--on-accent); }
+  button.stop { background: var(--err); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  #status { color: var(--muted); }
+  #status.live { color: var(--ok); font-weight: 600; }
+  #status.error { color: var(--err); font-weight: 600; }
+  .meter { flex: 1 1 120px; height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; min-width: 120px; }
+  .meter > span { display: block; height: 100%; width: 0; background: var(--accent); transition: width .1s; }
+  ol { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 10px; }
+  li { padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); }
+  li.assistant { background: color-mix(in srgb, var(--accent) 10%, var(--card)); }
+  li.tool { font-family: ui-monospace, Menlo, monospace; font-size: .85rem; color: var(--muted); }
+  li .who { display: block; font-size: .75rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  footer { margin-top: 20px; font-size: .85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Autohaus Kranich: Testanruf</h1>
+  <p class="sub">Startet den gespeicherten Assistenten direkt, ohne Einstellungen aus dem Vapi-Dashboard.</p>
+  <div class="card">
+    <div class="row">
+      <button id="start" type="button">Anruf starten</button>
+      <button id="stop" class="stop" type="button" disabled>Auflegen</button>
+      <span id="status">Bereit</span>
+      <div class="meter" aria-hidden="true"><span id="level"></span></div>
+    </div>
+    <ol id="log" aria-live="polite"></ol>
+  </div>
+  <footer>Nur lokal erreichbar. Gespräche werden nicht aufgezeichnet; Termine landen in der lokalen Datenbank.</footer>
+</main>
+<script type="module">
+  import Vapi from "https://esm.sh/@vapi-ai/web@2.7.1";
+  const PUBLIC_KEY = "__PUBLIC_KEY__";
+  const ASSISTANT_ID = "__ASSISTANT_ID__";
+  const $ = (id) => document.getElementById(id);
+  const vapi = new Vapi(PUBLIC_KEY);
+
+  function status(text, cls = "") { $("status").textContent = text; $("status").className = cls; }
+  function add(who, text, cls) {
+    const li = document.createElement("li");
+    li.className = cls;
+    const w = document.createElement("span");
+    w.className = "who"; w.textContent = who;
+    li.append(w, document.createTextNode(text));
+    $("log").append(li);
+    li.scrollIntoView({ block: "nearest" });
+  }
+
+  $("start").addEventListener("click", async () => {
+    $("start").disabled = true; $("log").replaceChildren(); status("Verbinde …");
+    try { await vapi.start(ASSISTANT_ID); }
+    catch (e) { status("Start fehlgeschlagen: " + (e?.message || e), "error"); $("start").disabled = false; }
+  });
+  $("stop").addEventListener("click", () => vapi.stop());
+
+  vapi.on("call-start", () => { status("Verbunden", "live"); $("stop").disabled = false; });
+  vapi.on("call-end", () => { status("Beendet"); $("stop").disabled = true; $("start").disabled = false; $("level").style.width = "0"; });
+  vapi.on("volume-level", (v) => { $("level").style.width = Math.round(v * 100) + "%"; });
+  vapi.on("error", (e) => status("Fehler: " + (e?.error?.message || e?.message || JSON.stringify(e)), "error"));
+  vapi.on("message", (m) => {
+    if (m.type === "transcript" && m.transcriptType === "final") {
+      add(m.role === "assistant" ? "Lena" : "Du", m.transcript, m.role === "assistant" ? "assistant" : "user");
+    } else if (m.type === "tool-calls") {
+      for (const t of m.toolCallList || []) add("Tool", `${t.function?.name} ${JSON.stringify(t.function?.arguments)}`, "tool");
+    }
+  });
+</script>
+</body>
+</html>
